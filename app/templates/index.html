@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FastAPI 학습 프로젝트</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>FastAPI 학습용 미니 프로젝트</h1>
+        <p>버튼을 하나씩 눌러 API 흐름을 확인하세요.</p>
+      </header>
+
+      <section class="card">
+        <h2>입력값</h2>
+        <div class="grid">
+          <label>
+            아이템 ID
+            <input id="item-id" type="number" min="1" value="1" />
+          </label>
+          <label>
+            제목
+            <input id="item-title" type="text" value="FastAPI 공부" />
+          </label>
+          <label>
+            설명
+            <input id="item-description" type="text" value="라우터 → 서비스 → 저장소 흐름 확인" />
+          </label>
+          <label class="toggle">
+            완료 여부
+            <input id="item-done" type="checkbox" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>확인 버튼 (메모리 저장소 - Step 1)</h2>
+        <div class="button-grid">
+          <button data-action="health">1. 헬스 체크</button>
+          <button data-action="create">2. 아이템 생성</button>
+          <button data-action="list">3. 전체 조회</button>
+          <button data-action="get">4. 단건 조회</button>
+          <button data-action="update">5. 수정</button>
+          <button data-action="delete">6. 삭제</button>
+          <button data-action="reset">7. 초기화</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>확인 버튼 (DB 저장소 - Step 2)</h2>
+        <p class="hint">의존성 주입(Depends) + SQLite 사용. 서버 재시작해도 데이터 유지됨!</p>
+        <div class="button-grid db-buttons">
+          <button data-action="health_db">1. 헬스 체크</button>
+          <button data-action="create_db">2. 아이템 생성</button>
+          <button data-action="list_db">3. 전체 조회</button>
+          <button data-action="get_db">4. 단건 조회</button>
+          <button data-action="update_db">5. 수정</button>
+          <button data-action="delete_db">6. 삭제</button>
+          <button data-action="reset_db">7. 초기화</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>인증 테스트 (Step 3)</h2>
+        <p class="hint">JWT 토큰 기반 인증. 회원가입 → 로그인 → 보호된 API 호출</p>
+        <div class="grid" style="margin-bottom: 12px;">
+          <label>
+            사용자명
+            <input id="auth-username" type="text" value="testuser" />
+          </label>
+          <label>
+            비밀번호
+            <input id="auth-password" type="password" value="testpass" />
+          </label>
+        </div>
+        <div class="button-grid auth-buttons">
+          <button data-action="register">1. 회원가입</button>
+          <button data-action="login">2. 로그인</button>
+          <button data-action="me">3. 내 정보 (인증 필수)</button>
+          <button data-action="list_auth">4. 조회 (인증 필수)</button>
+          <button data-action="create_auth">5. 생성 (인증 필수)</button>
+        </div>
+        <p class="hint" id="token-status">토큰: 없음</p>
+      </section>
+
+      <section class="card">
+        <h2>응답 결과</h2>
+        <pre id="output" class="output">버튼을 눌러 결과를 확인하세요.</pre>
+      </section>
+
+      <section class="card code-flow">
+        <h2>💡 실행 중인 코드 흐름</h2>
+        <div id="code-flow-display">
+          <p class="hint">버튼을 누르면 실제 실행되는 코드가 여기에 표시됩니다.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>학습 포인트</h2>
+        <ol>
+          <li>라우터에서 요청을 받고 서비스 로직으로 전달</li>
+          <li>서비스에서 검증 후 저장소를 호출</li>
+          <li>저장소에서 실제 데이터 변경</li>
+        </ol>
+      </section>
+
+      <section class="card flow">
+        <h2>요청 흐름 한눈에 보기</h2>
+        <div class="flow-row">
+          <div class="flow-box">브라우저 (버튼 클릭)</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box">라우터</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box">서비스</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box">저장소</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box">응답(JSON)</div>
+        </div>
+        <p class="hint">각 버튼을 누르면 위 흐름이 그대로 반복됩니다.</p>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

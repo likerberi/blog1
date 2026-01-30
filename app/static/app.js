@@ -1,0 +1,480 @@
+// 화면 요소 참조
+const outputEl = document.getElementById("output");
+const idEl = document.getElementById("item-id");
+const titleEl = document.getElementById("item-title");
+const descriptionEl = document.getElementById("item-description");
+const doneEl = document.getElementById("item-done");
+const codeFlowEl = document.getElementById("code-flow-display");
+const authUsernameEl = document.getElementById("auth-username");
+const authPasswordEl = document.getElementById("auth-password");
+const tokenStatusEl = document.getElementById("token-status");
+
+// [Step 3] 저장된 토큰
+let accessToken = null;
+
+// ============================================================
+// 코드 흐름 표시 (학습용)
+// ============================================================
+const codeFlows = {
+  // Step 1: 메모리 버전
+  health: `
+    <div class="flow-step">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes.py</div>
+        <span class="keyword">@router</span>.<span class="function">get</span>(<span class="string">"/health"</span>)<br>
+        <span class="keyword">def</span> <span class="function">health_check</span>():<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> {<span class="string">"status"</span>: <span class="string">"ok"</span>}
+      </div>
+    </div>
+    <p class="hint">가장 단순한 엔드포인트 - 서비스/저장소 없이 바로 응답</p>
+  `,
+  create: `
+    <div class="flow-step">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes.py (라우터)</div>
+        <span class="keyword">@router</span>.<span class="function">post</span>(<span class="string">"/items"</span>)<br>
+        <span class="keyword">def</span> <span class="function">create_item</span>(payload: <span class="highlight">ItemCreate</span>):<br>
+        &nbsp;&nbsp;<span class="comment"># Pydantic이 자동으로 title, description 검증</span><br>
+        &nbsp;&nbsp;<span class="keyword">return</span> service.<span class="function">create_item</span>(payload)
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num">2</span>
+      <div class="code-block">
+        <div class="file-name">app/services.py (서비스)</div>
+        <span class="keyword">def</span> <span class="function">create_item</span>(self, payload):<br>
+        &nbsp;&nbsp;self.<span class="function">_ensure_title_unique</span>(payload.title) <span class="comment"># 중복 체크</span><br>
+        &nbsp;&nbsp;<span class="keyword">return</span> self._repository.<span class="function">create_item</span>(...)
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num">3</span>
+      <div class="code-block">
+        <div class="file-name">app/repository.py (저장소)</div>
+        <span class="keyword">def</span> <span class="function">create_item</span>(self, title, description):<br>
+        &nbsp;&nbsp;item = Item(...)<br>
+        &nbsp;&nbsp;self._items[item.id] = item <span class="comment"># dict에 저장</span><br>
+        &nbsp;&nbsp;<span class="keyword">return</span> item
+      </div>
+    </div>
+  `,
+  list: `
+    <div class="flow-step">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes.py → services.py → repository.py</div>
+        라우터 → 서비스 → 저장소 순서로 호출<br>
+        <span class="keyword">return</span> list(self._items.<span class="function">values</span>()) <span class="comment"># 메모리에서 조회</span>
+      </div>
+    </div>
+  `,
+
+  // Step 2: DB 버전 (의존성 주입 강조)
+  health_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_db.py</div>
+        <span class="keyword">@router</span>.<span class="function">get</span>(<span class="string">"/health"</span>)<br>
+        <span class="keyword">def</span> <span class="function">health_check</span>():<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> {<span class="string">"status"</span>: <span class="string">"ok"</span>, <span class="string">"storage"</span>: <span class="string">"sqlite"</span>}
+      </div>
+    </div>
+  `,
+  create_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_db.py (의존성 주입!)</div>
+        <span class="keyword">@router</span>.<span class="function">post</span>(<span class="string">"/items"</span>)<br>
+        <span class="keyword">def</span> <span class="function">create_item</span>(<br>
+        &nbsp;&nbsp;payload: ItemCreate,<br>
+        &nbsp;&nbsp;service: ItemDBService = <span class="highlight">Depends(get_item_service)</span><br>
+        ):<br>
+        <span class="comment"># ↑ Depends가 자동으로 서비스 인스턴스를 만들어서 주입!</span>
+      </div>
+    </div>
+    <div class="flow-step db">
+      <span class="step-num">2</span>
+      <div class="code-block">
+        <div class="file-name">app/database.py (세션 생성)</div>
+        <span class="keyword">def</span> <span class="function">get_db</span>():<br>
+        &nbsp;&nbsp;db = SessionLocal()<br>
+        &nbsp;&nbsp;<span class="keyword">try</span>:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">yield db</span> <span class="comment"># 세션을 "빌려줌"</span><br>
+        &nbsp;&nbsp;<span class="keyword">finally</span>:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;db.<span class="function">close</span>() <span class="comment"># 요청 끝나면 자동 정리</span>
+      </div>
+    </div>
+    <div class="flow-step db">
+      <span class="step-num">3</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py (DB 저장)</div>
+        <span class="keyword">def</span> <span class="function">create_item</span>(self, title, description):<br>
+        &nbsp;&nbsp;self._db.<span class="function">add</span>(item)<br>
+        &nbsp;&nbsp;self._db.<span class="function">commit</span>() <span class="comment"># DB에 저장!</span><br>
+        &nbsp;&nbsp;self._db.<span class="function">refresh</span>(item)
+      </div>
+    </div>
+  `,
+  list_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">의존성 주입 체인</div>
+        <span class="highlight">Depends(get_db)</span> → DB 세션 생성<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+        <span class="highlight">Depends(get_item_service)</span> → 서비스에 세션 주입<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+        라우터 함수 실행<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+        요청 완료 → <span class="function">db.close()</span> 자동 호출
+      </div>
+    </div>
+    <div class="flow-step db">
+      <span class="step-num">2</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py</div>
+        <span class="keyword">return</span> self._db.<span class="function">query</span>(ItemModel).<span class="function">all</span>() <span class="comment"># SQLAlchemy 쿼리</span>
+      </div>
+    </div>
+  `,
+  get_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py</div>
+        <span class="keyword">return</span> self._db.<span class="function">query</span>(ItemModel).<span class="function">filter</span>(ItemModel.id == item_id).<span class="function">first</span>()
+      </div>
+    </div>
+  `,
+  update_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py</div>
+        item.title = title<br>
+        self._db.<span class="function">commit</span>() <span class="comment"># 변경사항 저장</span><br>
+        self._db.<span class="function">refresh</span>(item) <span class="comment"># DB에서 다시 읽기</span>
+      </div>
+    </div>
+  `,
+  delete_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py</div>
+        self._db.<span class="function">delete</span>(item)<br>
+        self._db.<span class="function">commit</span>()
+      </div>
+    </div>
+  `,
+  reset_db: `
+    <div class="flow-step db">
+      <span class="step-num">1</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py</div>
+        self._db.<span class="function">query</span>(ItemModel).<span class="function">delete</span>()<br>
+        self._db.<span class="function">commit</span>()
+      </div>
+    </div>
+  `,
+
+  // Step 3: 인증 버전
+  register: `
+    <div class="flow-step" style="--step-color: #dc2626;">
+      <span class="step-num" style="background: #dc2626;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/auth.py (비밀번호 해싱)</div>
+        <span class="keyword">def</span> <span class="function">create_user</span>(username, password):<br>
+        &nbsp;&nbsp;hashed = <span class="highlight">get_password_hash(password)</span> <span class="comment"># bcrypt 해싱</span><br>
+        &nbsp;&nbsp;user = {<span class="string">"username"</span>: username, <span class="string">"hashed_password"</span>: hashed}<br>
+        &nbsp;&nbsp;fake_users_db[username] = user
+      </div>
+    </div>
+    <p class="hint">비밀번호는 절대 평문으로 저장하지 않음!</p>
+  `,
+  login: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_auth.py (로그인)</div>
+        <span class="keyword">@router</span>.<span class="function">post</span>(<span class="string">"/login"</span>)<br>
+        <span class="keyword">def</span> <span class="function">login</span>(form_data: <span class="highlight">OAuth2PasswordRequestForm</span> = Depends()):<br>
+        <span class="comment"># OAuth2 표준 폼으로 username/password 받음</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">2</span>
+      <div class="code-block">
+        <div class="file-name">app/auth.py (비밀번호 검증)</div>
+        <span class="keyword">def</span> <span class="function">authenticate_user</span>(username, password):<br>
+        &nbsp;&nbsp;user = get_user(username)<br>
+        &nbsp;&nbsp;<span class="keyword">if</span> <span class="highlight">verify_password(password, user["hashed_password"])</span>:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> user
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">3</span>
+      <div class="code-block">
+        <div class="file-name">app/auth.py (JWT 토큰 생성)</div>
+        <span class="keyword">def</span> <span class="function">create_access_token</span>(data, expires_delta):<br>
+        &nbsp;&nbsp;to_encode = {<span class="string">"sub"</span>: username, <span class="string">"exp"</span>: expire_time}<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> <span class="highlight">jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")</span>
+      </div>
+    </div>
+    <p class="hint">로그인 성공 → JWT 토큰 발급 → 클라이언트가 저장</p>
+  `,
+  me: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">1</span>
+      <div class="code-block">
+        <div class="file-name">요청 헤더</div>
+        Authorization: <span class="highlight">Bearer eyJhbGciOiJIUzI1NiIs...</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">2</span>
+      <div class="code-block">
+        <div class="file-name">app/auth.py (토큰 검증)</div>
+        <span class="keyword">async def</span> <span class="function">get_current_user</span>(token = <span class="highlight">Depends(oauth2_scheme)</span>):<br>
+        &nbsp;&nbsp;payload = <span class="highlight">jwt.decode(token, SECRET_KEY)</span><br>
+        &nbsp;&nbsp;username = payload.get(<span class="string">"sub"</span>)<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> get_user(username)
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">3</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_auth.py</div>
+        <span class="keyword">@router</span>.<span class="function">get</span>(<span class="string">"/me"</span>)<br>
+        <span class="keyword">def</span> <span class="function">read_users_me</span>(current_user = <span class="highlight">Depends(get_current_active_user)</span>):<br>
+        &nbsp;&nbsp;<span class="comment"># current_user는 자동으로 인증된 사용자 정보!</span><br>
+        &nbsp;&nbsp;<span class="keyword">return</span> current_user
+      </div>
+    </div>
+    <p class="hint">Depends 체인: oauth2_scheme → get_current_user → get_current_active_user</p>
+  `,
+  list_auth: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_auth.py (보호된 엔드포인트)</div>
+        <span class="keyword">@router</span>.<span class="function">get</span>(<span class="string">"/protected/items"</span>)<br>
+        <span class="keyword">def</span> <span class="function">list_items_protected</span>(<br>
+        &nbsp;&nbsp;service = Depends(get_item_service),<br>
+        &nbsp;&nbsp;current_user = <span class="highlight">Depends(get_current_active_user)</span> <span class="comment"># 인증 필수!</span><br>
+        ):<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> service.list_items()
+      </div>
+    </div>
+    <p class="hint">current_user 파라미터가 있으면 자동으로 인증 체크!</p>
+  `,
+  create_auth: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #dc2626;">1</span>
+      <div class="code-block">
+        <div class="file-name">의존성 주입 체인</div>
+        <span class="highlight">Depends(get_db)</span> → DB 세션<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+        <span class="highlight">Depends(get_item_service)</span> → 서비스<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+        <span class="highlight">Depends(get_current_active_user)</span> → 인증된 사용자<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+        라우터 함수 실행
+      </div>
+    </div>
+    <p class="hint">여러 Depends를 동시에 사용 가능!</p>
+  `,
+};
+
+function showCodeFlow(action) {
+  if (codeFlows[action]) {
+    codeFlowEl.innerHTML = codeFlows[action];
+  } else {
+    codeFlowEl.innerHTML = '<p class="hint">이 액션의 코드 흐름 정보가 없습니다.</p>';
+  }
+}
+
+// 버튼별 API 호출 정의 (라우터 → 서비스 → 저장소로 이어짐)
+const api = {
+  // ============================================================
+  // Step 1: 메모리 저장소 (/api/...)
+  // ============================================================
+  health: () => fetchJson("/api/health"),
+  list: () => fetchJson("/api/items"),
+  create: () =>
+    fetchJson("/api/items", {
+      method: "POST",
+      body: {
+        title: titleEl.value,
+        description: descriptionEl.value || null,
+      },
+    }),
+  get: () => fetchJson(`/api/items/${idEl.value}`),
+  update: () =>
+    fetchJson(`/api/items/${idEl.value}`, {
+      method: "PUT",
+      body: {
+        title: titleEl.value || null,
+        description: descriptionEl.value || null,
+        is_done: doneEl.checked,
+      },
+    }),
+  delete: () => fetchJson(`/api/items/${idEl.value}`, { method: "DELETE" }),
+  reset: () => fetchJson("/api/reset", { method: "POST" }),
+
+  // ============================================================
+  // Step 2: DB 저장소 (/api/v2/...)
+  // 의존성 주입(Depends) + SQLite
+  // ============================================================
+  health_db: () => fetchJson("/api/v2/health"),
+  list_db: () => fetchJson("/api/v2/items"),
+  create_db: () =>
+    fetchJson("/api/v2/items", {
+      method: "POST",
+      body: {
+        title: titleEl.value,
+        description: descriptionEl.value || null,
+      },
+    }),
+  get_db: () => fetchJson(`/api/v2/items/${idEl.value}`),
+  update_db: () =>
+    fetchJson(`/api/v2/items/${idEl.value}`, {
+      method: "PUT",
+      body: {
+        title: titleEl.value || null,
+        description: descriptionEl.value || null,
+        is_done: doneEl.checked,
+      },
+    }),
+  delete_db: () => fetchJson(`/api/v2/items/${idEl.value}`, { method: "DELETE" }),
+  reset_db: () => fetchJson("/api/v2/reset", { method: "POST" }),
+
+  // ============================================================
+  // Step 3: 인증 버전 (/api/v3/...)
+  // JWT 토큰 + Depends(get_current_user)
+  // ============================================================
+  register: () =>
+    fetchJson("/api/v3/register", {
+      method: "POST",
+      body: {
+        username: authUsernameEl.value,
+        password: authPasswordEl.value,
+      },
+    }),
+  login: async () => {
+    // 로그인은 form-data로 전송
+    const formData = new URLSearchParams();
+    formData.append("username", authUsernameEl.value);
+    formData.append("password", authPasswordEl.value);
+    const response = await fetch("/api/v3/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData,
+    });
+    const data = await response.json();
+    if (response.ok) {
+      accessToken = data.access_token;
+      tokenStatusEl.textContent = `토큰: ${accessToken.substring(0, 20)}...`;
+    }
+    return data;
+  },
+  me: () => fetchJsonWithAuth("/api/v3/me"),
+  list_auth: () => fetchJsonWithAuth("/api/v3/protected/items"),
+  create_auth: () =>
+    fetchJsonWithAuth("/api/v3/protected/items", {
+      method: "POST",
+      body: {
+        title: titleEl.value,
+        description: descriptionEl.value || null,
+      },
+    }),
+};
+
+// 공통 fetch 함수: JSON 요청/응답 처리
+async function fetchJson(url, options = {}) {
+  const init = {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  };
+  if (init.body && typeof init.body !== "string") {
+    init.body = JSON.stringify(init.body);
+  }
+
+  const response = await fetch(url, init);
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      typeof data === "string" ? data : JSON.stringify(data, null, 2)
+    );
+  }
+  return data;
+}
+
+// [Step 3] 인증 헤더 포함 fetch
+async function fetchJsonWithAuth(url, options = {}) {
+  if (!accessToken) {
+    throw new Error("먼저 로그인하세요! (토큰이 없습니다)");
+  }
+  const init = {
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,  // JWT 토큰 추가
+    },
+    ...options,
+  };
+  if (init.body && typeof init.body !== "string") {
+    init.body = JSON.stringify(init.body);
+  }
+
+  const response = await fetch(url, init);
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      typeof data === "string" ? data : JSON.stringify(data, null, 2)
+    );
+  }
+  return data;
+}
+
+// 화면에 결과를 보기 좋게 출력
+function renderOutput(data) {
+  outputEl.textContent =
+    typeof data === "string" ? data : JSON.stringify(data, null, 2);
+}
+
+// 오류 출력
+function renderError(error) {
+  outputEl.textContent = `오류: ${error.message}`;
+}
+
+// 버튼 이벤트 연결
+function setupButtons() {
+  document.querySelectorAll("button[data-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.action;
+      // action: health / create / list / get / update / delete / reset
+      outputEl.textContent = "요청 중...";
+      showCodeFlow(action);  // 코드 흐름 표시
+      try {
+        const result = await api[action]();
+        renderOutput(result);
+      } catch (error) {
+        renderError(error);
+      }
+    });
+  });
+}
+
+setupButtons();
