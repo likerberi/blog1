@@ -86,6 +86,19 @@
       </section>
 
       <section class="card">
+        <h2>비동기 + 백그라운드 (Step 4)</h2>
+        <p class="hint">async/await 비동기 처리와 BackgroundTasks 비교</p>
+        <div class="button-grid async-buttons">
+          <button data-action="async_list">1. 비동기 조회</button>
+          <button data-action="async_create">2. 비동기 생성 + 백그라운드</button>
+          <button data-action="sequential">3. 순차 처리 (느림)</button>
+          <button data-action="concurrent">4. 동시 처리 (빠름!)</button>
+          <button data-action="bg_log">5. 백그라운드 로그</button>
+          <button data-action="bg_email">6. 백그라운드 이메일</button>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>응답 결과</h2>
         <pre id="output" class="output">버튼을 눌러 결과를 확인하세요.</pre>
       </section>

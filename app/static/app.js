@@ -288,6 +288,106 @@ const codeFlows = {
     </div>
     <p class="hint">여러 Depends를 동시에 사용 가능!</p>
   `,
+
+  // Step 4: 비동기 + 백그라운드
+  async_list: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_async.py</div>
+        <span class="highlight">async def</span> <span class="function">list_items_async</span>(...):<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> <span class="highlight">await</span> service.list_items_async()
+      </div>
+    </div>
+    <p class="hint">async def + await = 비동기 함수. I/O 대기 중 다른 요청 처리 가능!</p>
+  `,
+  async_create: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_async.py</div>
+        <span class="highlight">async def</span> <span class="function">create_item_async</span>(<br>
+        &nbsp;&nbsp;payload: ItemCreate,<br>
+        &nbsp;&nbsp;<span class="highlight">background_tasks: BackgroundTasks</span>, <span class="comment"># 주입!</span><br>
+        ):<br>
+        &nbsp;&nbsp;item = <span class="highlight">await</span> service.create_item_async(payload)<br>
+        &nbsp;&nbsp;<span class="comment"># 여기서 응답 반환 (사용자는 여기까지만 대기)</span><br>
+        &nbsp;&nbsp;background_tasks.<span class="function">add_task</span>(후처리함수, ...)<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> item
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">2</span>
+      <div class="code-block">
+        <div class="file-name">응답 후 백그라운드 실행</div>
+        로그 기록 → 검색 인덱스 → 캐시 갱신 → 알림 발송<br>
+        <span class="comment"># 사용자는 이미 응답 받음!</span>
+      </div>
+    </div>
+  `,
+  sequential: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">1</span>
+      <div class="code-block">
+        <div class="file-name">순차 처리 (느림)</div>
+        result1 = <span class="highlight">await</span> api_call(1) <span class="comment"># 0.5초 대기</span><br>
+        result2 = <span class="highlight">await</span> api_call(2) <span class="comment"># 0.5초 대기</span><br>
+        result3 = <span class="highlight">await</span> api_call(3) <span class="comment"># 0.5초 대기</span><br>
+        <span class="comment"># 총 1.5초!</span>
+      </div>
+    </div>
+    <p class="hint">하나 끝나면 다음 시작 → 총 시간 = 합계</p>
+  `,
+  concurrent: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">1</span>
+      <div class="code-block">
+        <div class="file-name">동시 처리 (빠름!)</div>
+        results = <span class="highlight">await asyncio.gather</span>(<br>
+        &nbsp;&nbsp;api_call(1), <span class="comment"># 동시 시작</span><br>
+        &nbsp;&nbsp;api_call(2), <span class="comment"># 동시 시작</span><br>
+        &nbsp;&nbsp;api_call(3), <span class="comment"># 동시 시작</span><br>
+        )<br>
+        <span class="comment"># 총 0.5초! (가장 느린 것 기준)</span>
+      </div>
+    </div>
+    <p class="hint">모두 동시에 시작 → 총 시간 ≈ 가장 느린 작업 시간</p>
+  `,
+  bg_log: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_async.py</div>
+        background_tasks.<span class="function">add_task</span>(<span class="highlight">write_log</span>, message)<br>
+        <span class="keyword">return</span> {<span class="string">"status"</span>: <span class="string">"accepted"</span>}<br>
+        <span class="comment"># 응답 즉시 반환!</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">2</span>
+      <div class="code-block">
+        <div class="file-name">app/background.py (응답 후 실행)</div>
+        <span class="keyword">def</span> <span class="function">write_log</span>(message):<br>
+        &nbsp;&nbsp;time.sleep(0.5) <span class="comment"># 파일 I/O</span><br>
+        &nbsp;&nbsp;<span class="keyword">with</span> open(<span class="string">"log.txt"</span>, <span class="string">"a"</span>) <span class="keyword">as</span> f:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;f.write(message)
+      </div>
+    </div>
+  `,
+  bg_email: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #7c3aed;">1</span>
+      <div class="code-block">
+        <div class="file-name">백그라운드 이메일</div>
+        background_tasks.<span class="function">add_task</span>(<br>
+        &nbsp;&nbsp;<span class="highlight">send_email_notification</span>,<br>
+        &nbsp;&nbsp;email, subject, body<br>
+        )<br>
+        <span class="keyword">return</span> {<span class="string">"status"</span>: <span class="string">"accepted"</span>}
+      </div>
+    </div>
+    <p class="hint">이메일 발송은 2~5초 걸리지만 사용자는 즉시 응답!</p>
+  `,
 };
 
 function showCodeFlow(action) {
@@ -391,6 +491,29 @@ const api = {
         title: titleEl.value,
         description: descriptionEl.value || null,
       },
+    }),
+
+  // ============================================================
+  // Step 4: 비동기 + 백그라운드 (/api/v4/...)
+  // ============================================================
+  async_list: () => fetchJson("/api/v4/async/items"),
+  async_create: () =>
+    fetchJson("/api/v4/async/items", {
+      method: "POST",
+      body: {
+        title: titleEl.value,
+        description: descriptionEl.value || null,
+      },
+    }),
+  sequential: () => fetchJson("/api/v4/async/sequential"),
+  concurrent: () => fetchJson("/api/v4/async/concurrent"),
+  bg_log: () =>
+    fetchJson(`/api/v4/background/log?message=${encodeURIComponent("테스트 로그 메시지")}`, {
+      method: "POST",
+    }),
+  bg_email: () =>
+    fetchJson(`/api/v4/background/email?email=test@example.com&subject=테스트&body=테스트 이메일`, {
+      method: "POST",
     }),
 };
 
