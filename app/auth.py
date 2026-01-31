@@ -7,6 +7,7 @@
 3. Depends로 인증 주입
 """
 
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -31,14 +32,26 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def _pre_hash_password(password: str) -> str:
+    """
+    bcrypt의 72바이트 제한 문제를 해결하기 위한 SHA-256 pre-hashing
+    
+    SHA-256은 어떤 길이의 입력도 64자의 hex string으로 변환하므로
+    bcrypt의 72바이트 제한을 회피할 수 있습니다.
+    """
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """입력된 비밀번호와 해시된 비밀번호 비교"""
-    return pwd_context.verify(plain_password, hashed_password)
+    pre_hashed = _pre_hash_password(plain_password)
+    return pwd_context.verify(pre_hashed, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """비밀번호를 해시로 변환 (저장용)"""
-    return pwd_context.hash(password)
+    pre_hashed = _pre_hash_password(password)
+    return pwd_context.hash(pre_hashed)
 
 
 # ============================================================
