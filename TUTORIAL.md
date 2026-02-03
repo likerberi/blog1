@@ -477,3 +477,147 @@ def list_items(service: ItemDBService = Depends(get_item_service)):
 4. 서버 종료 후 재시작
 5. 다시 조회 → 데이터가 유지됨!
 6. `/docs`에서 v2 API 확인
+---
+
+## Step 5: 에러 핸들링 + CORS
+
+**목표**: 전역 예외 처리와 CORS 설정으로 프론트엔드 통합 준비
+
+### 📌 왜 필요한가?
+
+1. **에러 핸들링**: 예외 발생 시 일관된 응답 형식 제공
+2. **CORS**: 다른 도메인(예: localhost:3000)에서 API 호출 허용
+
+### 1️⃣ CORS 설정 (`app/main.py`)
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="FastAPI 학습 프로젝트 v5.0", version="5.0.0")
+
+# CORS 미들웨어 추가
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # React 등 프론트엔드
+    allow_credentials=True,
+    allow_methods=["*"],  # GET, POST, PUT, DELETE 등 모든 메서드
+    allow_headers=["*"],  # 모든 헤더 허용
+)
+```
+
+**역할**:
+- 브라우저의 CORS 정책을 우회하여 다른 포트의 프론트엔드가 API 호출 가능
+- `allow_credentials=True`: 쿠키/인증 헤더 포함 요청 허용
+
+### 2️⃣ 전역 예외 핸들러 (`app/main.py`)
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """ValueError → 400 Bad Request 변환"""
+    return JSONResponse(
+        status_code=400,
+        content={"error": str(exc), "type": "validation_error"}
+    )
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    """404 Not Found 커스텀 응답"""
+    return JSONResponse(
+        status_code=404,
+        content={"error": "요청한 리소스를 찾을 수 없습니다", "path": str(request.url)}
+    )
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    """500 Internal Server Error 커스텀 응답"""
+    return JSONResponse(
+        status_code=500,
+        content={"error": "서버 내부 오류가 발생했습니다", "type": str(type(exc).__name__)}
+    )
+```
+
+**역할**:
+- `ValueError` 발생 시 자동으로 400 에러로 변환
+- 404, 500 에러 응답 형식 통일
+- 프론트엔드에서 에러 처리가 쉬워짐
+
+### 3️⃣ 에러 테스트 UI
+
+**HTML** (`app/templates/index.html`):
+```html
+<section class="card">
+  <h2>에러 핸들링 테스트 (Step 5)</h2>
+  <p class="hint">전역 예외 핸들러 + CORS 설정 확인</p>
+  <div class="button-grid error-buttons">
+    <button data-action="test_duplicate">1. 중복 에러 발생</button>
+    <button data-action="test_not_found">2. 404 에러</button>
+    <button data-action="test_validation">3. 검증 에러</button>
+  </div>
+</section>
+```
+
+**JavaScript** (`app/static/app.js`):
+```javascript
+test_duplicate: async () => {
+  // 같은 타이틀로 두 번 생성해서 ValueError 발생
+  await fetchJsonWithAuth("/api/v3/items", {
+    method: "POST",
+    body: { title: "중복테스트", description: "첫 번째" },
+  });
+  return fetchJsonWithAuth("/api/v3/items", {
+    method: "POST",
+    body: { title: "중복테스트", description: "두 번째 (에러!)" },
+  });
+},
+test_not_found: () => fetchJsonWithAuth("/api/v3/items/99999"),
+test_validation: () =>
+  fetchJson("/api/items", {
+    method: "POST",
+    body: { description: "title 필드 없음!" },
+  }),
+```
+
+### 🎯 예외 흐름
+
+```
+[중복 에러]
+1. 사용자: 같은 타이틀로 두 번 생성
+2. services_db.py: raise ValueError("이미 존재하는 제목")
+3. main.py: ValueError 핸들러 → 400 반환
+4. 프론트엔드: {"error": "이미 존재하는 제목", "type": "validation_error"}
+
+[404 에러]
+1. 사용자: 존재하지 않는 ID로 조회
+2. repository_db.py: raise HTTPException(status_code=404)
+3. main.py: 404 핸들러 → 커스텀 메시지
+4. 프론트엔드: {"error": "요청한 리소스를 찾을 수 없습니다", "path": "..."}
+
+[검증 에러]
+1. 사용자: title 필드 없이 생성 요청
+2. FastAPI: Pydantic 검증 실패 → 자동으로 422 반환
+3. 프론트엔드: {"detail": [{"loc": ["body", "title"], "msg": "field required"}]}
+```
+
+### 🔄 기존 코드와 비교
+
+| 항목 | 이전 (Step 1-4) | 현재 (Step 5) |
+|------|-----------------|---------------|
+| 에러 응답 | 각 엔드포인트마다 다름 | 전역 핸들러로 통일 |
+| CORS | 없음 (같은 도메인만) | localhost:3000 허용 |
+| ValueError | 500 에러 | 400 Bad Request |
+| 프론트엔드 연동 | 어려움 | 간단 |
+
+### ✅ 확인 방법
+
+1. 서버 실행: `uvicorn app.main:app --reload`
+2. http://127.0.0.1:8000 접속
+3. **먼저 로그인** (빨간색 버튼 Step 3)
+4. **주황색 버튼** (Step 5)으로 에러 테스트:
+   - "1. 중복 에러 발생" → 두 번 누르면 400 에러
+   - "2. 404 에러" → 99999번 아이템 조회 실패
+   - "3. 검증 에러" → title 없이 생성 시도 → 422 에러
+5. 브라우저 개발자 도구 → Network 탭에서 CORS 헤더 확인
