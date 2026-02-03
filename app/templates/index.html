@@ -99,6 +99,17 @@
       </section>
 
       <section class="card">
+        <h2>에러 핸들링 테스트 (Step 5)</h2>
+        <p class="hint">전역 예외 핸들러 + CORS 설정 확인</p>
+        <div class="button-grid error-buttons">
+          <button data-action="test_duplicate">1. 중복 에러 발생</button>
+          <button data-action="test_not_found">2. 404 에러</button>
+          <button data-action="test_validation">3. 검증 에러</button>
+        </div>
+        <p class="hint">CORS는 다른 도메인에서 접근 시 확인 가능 (브라우저 콘솔 참고)</p>
+      </section>
+
+      <section class="card">
         <h2>응답 결과</h2>
         <pre id="output" class="output">버튼을 눌러 결과를 확인하세요.</pre>
       </section>

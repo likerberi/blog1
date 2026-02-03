@@ -388,6 +388,80 @@ const codeFlows = {
     </div>
     <p class="hint">이메일 발송은 2~5초 걸리지만 사용자는 즉시 응답!</p>
   `,
+
+  // Step 5: 에러 핸들링 코드 흐름
+  test_duplicate: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #ef4444;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/services_db.py (중복 검증)</div>
+        existing = repository.get_by_title(title)<br>
+        <span class="keyword">if</span> existing:<br>
+        &nbsp;&nbsp;<span class="keyword">raise</span> <span class="highlight">ValueError</span>(<span class="string">"이미 존재하는 제목입니다"</span>)
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #ef4444;">2</span>
+      <div class="code-block">
+        <div class="file-name">app/main.py (예외 핸들러)</div>
+        <span class="keyword">@app</span>.<span class="function">exception_handler</span>(ValueError)<br>
+        <span class="keyword">def</span> <span class="function">value_error_handler</span>(request, exc):<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> JSONResponse(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;status_code=<span class="highlight">400</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;content={<span class="string">"error"</span>: str(exc)}<br>
+        &nbsp;&nbsp;)
+      </div>
+    </div>
+    <p class="hint">ValueError → 400 Bad Request로 자동 변환!</p>
+  `,
+  test_not_found: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #ef4444;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/repository_db.py</div>
+        item = self._db.query(ItemModel).filter(...).first()<br>
+        <span class="keyword">if</span> <span class="keyword">not</span> item:<br>
+        &nbsp;&nbsp;<span class="keyword">raise</span> <span class="highlight">HTTPException</span>(status_code=404)
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #ef4444;">2</span>
+      <div class="code-block">
+        <div class="file-name">app/main.py (404 핸들러)</div>
+        <span class="keyword">@app</span>.<span class="function">exception_handler</span>(<span class="highlight">404</span>)<br>
+        <span class="keyword">def</span> <span class="function">not_found_handler</span>(request, exc):<br>
+        &nbsp;&nbsp;<span class="keyword">return</span> JSONResponse(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;status_code=404,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;content={<span class="string">"error"</span>: <span class="string">"리소스를 찾을 수 없습니다"</span>}<br>
+        &nbsp;&nbsp;)
+      </div>
+    </div>
+  `,
+  test_validation: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #ef4444;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/schemas.py (Pydantic 검증)</div>
+        <span class="keyword">class</span> <span class="function">ItemCreate</span>(BaseModel):<br>
+        &nbsp;&nbsp;title: str = Field(..., min_length=1) <span class="comment"># 필수!</span><br>
+        &nbsp;&nbsp;description: Optional[str] = None
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #ef4444;">2</span>
+      <div class="code-block">
+        <div class="file-name">FastAPI 자동 검증</div>
+        <span class="comment"># title 필드가 없으면 FastAPI가 자동으로 422 에러 반환</span><br>
+        {<br>
+        &nbsp;&nbsp;<span class="string">"detail"</span>: [{<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"loc"</span>: [<span class="string">"body"</span>, <span class="string">"title"</span>],<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"msg"</span>: <span class="string">"field required"</span><br>
+        &nbsp;&nbsp;}]<br>
+        }
+      </div>
+    </div>
+    <p class="hint">Pydantic이 자동으로 422 Unprocessable Entity 반환!</p>
+  `,
 };
 
 function showCodeFlow(action) {
@@ -514,6 +588,27 @@ const api = {
   bg_email: () =>
     fetchJson(`/api/v4/background/email?email=test@example.com&subject=테스트&body=테스트 이메일`, {
       method: "POST",
+    }),
+
+  // ============================================================
+  // Step 5: 에러 핸들링
+  // ============================================================
+  test_duplicate: async () => {
+    // 같은 타이틀로 두 번 생성해서 중복 에러 발생
+    await fetchJsonWithAuth("/api/v3/items", {
+      method: "POST",
+      body: { title: "중복테스트", description: "첫 번째 생성" },
+    });
+    return fetchJsonWithAuth("/api/v3/items", {
+      method: "POST",
+      body: { title: "중복테스트", description: "두 번째 생성 (에러!)" },
+    });
+  },
+  test_not_found: () => fetchJsonWithAuth("/api/v3/items/99999"),
+  test_validation: () =>
+    fetchJson("/api/items", {
+      method: "POST",
+      body: { description: "title 필드 없음!" },
     }),
 };
 

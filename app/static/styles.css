@@ -216,6 +216,14 @@ button:hover {
   box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
 }
 
+.error-buttons button {
+  background: #f97316;
+}
+
+.error-buttons button:hover {
+  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.3);
+}
+
 ol {
   padding-left: 20px;
 }
