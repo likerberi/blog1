@@ -11,10 +11,10 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 
@@ -27,11 +27,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 # ============================================================
-# 비밀번호 해싱
+# 비밀번호 해싱 (bcrypt 직접 사용)
 # ============================================================
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def _pre_hash_password(password: str) -> str:
     """
     bcrypt의 72바이트 제한 문제를 해결하기 위한 SHA-256 pre-hashing
@@ -45,13 +42,15 @@ def _pre_hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """입력된 비밀번호와 해시된 비밀번호 비교"""
     pre_hashed = _pre_hash_password(plain_password)
-    return pwd_context.verify(pre_hashed, hashed_password)
+    return bcrypt.checkpw(pre_hashed.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
 def get_password_hash(password: str) -> str:
     """비밀번호를 해시로 변환 (저장용)"""
     pre_hashed = _pre_hash_password(password)
-    return pwd_context.hash(pre_hashed)
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pre_hashed.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 # ============================================================

@@ -4,10 +4,12 @@ const idEl = document.getElementById("item-id");
 const titleEl = document.getElementById("item-title");
 const descriptionEl = document.getElementById("item-description");
 const doneEl = document.getElementById("item-done");
-const codeFlowEl = document.getElementById("code-flow-display");
-const authUsernameEl = document.getElementById("auth-username");
-const authPasswordEl = document.getElementById("auth-password");
-const tokenStatusEl = document.getElementById("token-status");
+const codeFlowEl = document.getElementById("code-flow");
+
+// [Step 3] 인증 요소 (나중에 로드되므로 함수로 접근)
+const getAuthUsername = () => document.getElementById("auth-username");
+const getAuthPassword = () => document.getElementById("auth-password");
+const getTokenStatus = () => document.getElementById("token-status");
 
 // [Step 3] 저장된 토큰
 let accessToken = null;
@@ -462,6 +464,63 @@ const codeFlows = {
     </div>
     <p class="hint">Pydantic이 자동으로 422 Unprocessable Entity 반환!</p>
   `,
+
+  // Step 6: 파일 업로드 코드 흐름
+  upload_file: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #14b8a6;">1</span>
+      <div class="code-block">
+        <div class="file-name">app/api/routes_upload.py (파일 검증)</div>
+        <span class="keyword">def</span> <span class="function">validate_file</span>(file: <span class="highlight">UploadFile</span>):<br>
+        &nbsp;&nbsp;file_ext = os.path.splitext(file.filename)[1].lower()<br>
+        &nbsp;&nbsp;<span class="keyword">if</span> file_ext <span class="keyword">not in</span> ALLOWED_EXTENSIONS:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">raise</span> HTTPException(status_code=400)
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="step-num" style="background: #14b8a6;">2</span>
+      <div class="code-block">
+        <div class="file-name">파일 저장 (청크 단위)</div>
+        <span class="keyword">with</span> open(filepath, <span class="string">"wb"</span>) <span class="keyword">as</span> buffer:<br>
+        &nbsp;&nbsp;<span class="keyword">while</span> <span class="keyword">True</span>:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;chunk = upload_file.file.read(<span class="highlight">8192</span>)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span> file_size > MAX_FILE_SIZE:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">raise</span> HTTPException(status_code=413)
+      </div>
+    </div>
+    <p class="hint">파일은 8KB씩 청크로 읽어서 저장 (메모리 효율적)</p>
+  `,
+  list_uploads: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #14b8a6;">1</span>
+      <div class="code-block">
+        <div class="file-name">uploads 디렉토리 스캔</div>
+        <span class="keyword">for</span> filename <span class="keyword">in</span> os.listdir(UPLOAD_DIR):<br>
+        &nbsp;&nbsp;stat = os.stat(filepath)<br>
+        &nbsp;&nbsp;files.append({<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"filename"</span>: filename,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"size"</span>: stat.st_size<br>
+        &nbsp;&nbsp;})
+      </div>
+    </div>
+  `,
+  run_tests: `
+    <div class="flow-step">
+      <span class="step-num" style="background: #14b8a6;">1</span>
+      <div class="code-block">
+        <div class="file-name">터미널에서 실행</div>
+        $ <span class="highlight">pytest tests/ -v</span><br>
+        <br>
+        tests/test_api.py::test_health_check <span class="string">PASSED</span><br>
+        tests/test_api.py::test_create_item <span class="string">PASSED</span><br>
+        tests/test_api.py::test_upload_file <span class="string">PASSED</span><br>
+        <br>
+        <span class="comment"># 커버리지 확인</span><br>
+        $ <span class="highlight">pytest --cov=app tests/</span>
+      </div>
+    </div>
+    <p class="hint">pytest는 자동으로 모든 test_*.py 파일을 실행합니다</p>
+  `,
 };
 
 function showCodeFlow(action) {
@@ -535,15 +594,15 @@ const api = {
     fetchJson("/api/v3/register", {
       method: "POST",
       body: {
-        username: authUsernameEl.value,
-        password: authPasswordEl.value,
+        username: getAuthUsername().value,
+        password: getAuthPassword().value,
       },
     }),
   login: async () => {
     // 로그인은 form-data로 전송
     const formData = new URLSearchParams();
-    formData.append("username", authUsernameEl.value);
-    formData.append("password", authPasswordEl.value);
+    formData.append("username", getAuthUsername().value);
+    formData.append("password", getAuthPassword().value);
     const response = await fetch("/api/v3/login", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -552,7 +611,11 @@ const api = {
     const data = await response.json();
     if (response.ok) {
       accessToken = data.access_token;
-      tokenStatusEl.textContent = `토큰: ${accessToken.substring(0, 20)}...`;
+      const statusEl = getTokenStatus();
+      if (statusEl) {
+        statusEl.textContent = `✅ 토큰: ${accessToken.substring(0, 20)}...`;
+        statusEl.style.color = '#10b981';
+      }
     }
     return data;
   },
@@ -610,6 +673,40 @@ const api = {
       method: "POST",
       body: { description: "title 필드 없음!" },
     }),
+
+  // ============================================================
+  // Step 6: 파일 업로드 + 테스팅
+  // ============================================================
+  upload_file: async () => {
+    const fileInput = document.getElementById("upload-file");
+    if (!fileInput.files.length) {
+      throw new Error("파일을 선택해주세요!");
+    }
+    
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    
+    const response = await fetch("/api/v5/upload", {
+      method: "POST",
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "업로드 실패");
+    }
+    
+    return await response.json();
+  },
+  list_uploads: () => fetchJson("/api/v5/uploads"),
+  clear_uploads: () => fetchJson("/api/v5/uploads/clear", { method: "DELETE" }),
+  run_tests: async () => {
+    return { 
+      message: "브라우저에서 pytest를 직접 실행할 수 없습니다.",
+      instruction: "터미널에서 'pytest tests/ -v' 명령을 실행하세요!",
+      tip: "또는 'pytest tests/ -v --cov=app' 로 커버리지 확인"
+    };
+  },
 };
 
 // 공통 fetch 함수: JSON 요청/응답 처리

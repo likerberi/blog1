@@ -31,6 +31,19 @@ env/
 .idea/
 *.swp
 *.swo
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads
+uploads/
+*.log
+background_log.txt
+.idea/
+*.swp
+*.swo
 *~
 
 # Database

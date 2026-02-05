@@ -10,6 +10,7 @@ from .api.routes import create_router
 from .api.routes_db import router as db_router  # [Step 2] DB 라우터 추가
 from .api.routes_auth import router as auth_router  # [Step 3] 인증 라우터 추가
 from .api.routes_async import router as async_router  # [Step 4] 비동기 라우터 추가
+from .api.routes_upload import router as upload_router  # [Step 6] 파일 업로드 라우터 추가
 from .database import Base, engine  # [Step 2] DB 설정 추가
 from .middleware import LoggingMiddleware, AuthHeaderMiddleware  # [Step 3] 미들웨어
 from .repository import ItemRepository
@@ -18,7 +19,7 @@ from .services import ItemService
 # [Step 2] DB 테이블 생성 (앱 시작 시 자동 실행)
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="FastAPI 학습 프로젝트", version="5.0.0")
+app = FastAPI(title="FastAPI 학습 프로젝트", version="6.0.0")
 
 # [Step 5] CORS 설정 (가장 먼저 등록)
 app.add_middleware(
@@ -53,6 +54,10 @@ app.include_router(auth_router)
 # [Step 4] 비동기 + 백그라운드 라우터 추가
 # /api/v4/... 경로로 접근 가능
 app.include_router(async_router)
+
+# [Step 6] 파일 업로드 라우터 추가
+# /api/v5/... 경로로 접근 가능
+app.include_router(upload_router)
 
 
 # ============================================================
